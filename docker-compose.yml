@@ -1,0 +1,138 @@
+version: '2.4'
+
+services:
+  cass1:
+    image: "cassandra:4.0.7"
+    container_name: "cass1"
+    hostname: "cass1"
+    ports:
+      - '7000:7000'
+      - '9042:9042'
+    networks:
+      - cassandra-net
+    environment:
+      - CASSANDRA_START_RPC=true       # default
+      - CASSANDRA_RPC_ADDRESS=0.0.0.0  # default
+      - CASSANDRA_LISTEN_ADDRESS=auto  # default, use IP addr of container # = CASSANDRA_BROADCAST_ADDRESS
+      - CASSANDRA_CLUSTER_NAME=petanque
+      - CASSANDRA_ENDPOINT_SNITCH=GossipingPropertyFileSnitch
+      - CASSANDRA_DC=datacenter1
+    volumes:
+      - cassandra-node-1:/var/lib/cassandra:rw
+    restart:
+      on-failure
+    healthcheck:
+      test: ["CMD-SHELL", "nodetool status"]
+      interval: 2m
+      timeout: 10s
+      retries: 3
+
+  cass2:
+    image: "cassandra:4.0.7"
+    container_name: "cass2"
+    hostname: "cass2"
+    ports:
+      - 9043:9042
+    networks:
+      - cassandra-net
+    environment:
+      - CASSANDRA_START_RPC=true       # default
+      - CASSANDRA_RPC_ADDRESS=0.0.0.0  # default
+      - CASSANDRA_LISTEN_ADDRESS=auto  # default, use IP addr of container # = CASSANDRA_BROADCAST_ADDRESS
+      - CASSANDRA_CLUSTER_NAME=petanque
+      - CASSANDRA_ENDPOINT_SNITCH=GossipingPropertyFileSnitch
+      - CASSANDRA_DC=datacenter1
+      - CASSANDRA_SEEDS=cass1
+    depends_on:
+      cass1:
+        condition: service_healthy
+    volumes:
+      - cassandra-node-2:/var/lib/cassandra:rw
+    restart:
+      on-failure
+    healthcheck:
+      test: ["CMD-SHELL", "nodetool status"]
+      interval: 2m
+      timeout: 10s
+      retries: 3
+
+  cass3:
+    image: "cassandra:4.0.7"
+    container_name: "cass3"
+    hostname: "cass3"
+    ports:
+      - 9044:9042
+    networks:
+      - cassandra-net
+    environment:
+      - CASSANDRA_START_RPC=true       # default
+      - CASSANDRA_RPC_ADDRESS=0.0.0.0  # default
+      - CASSANDRA_LISTEN_ADDRESS=auto  # default, use IP addr of container # = CASSANDRA_BROADCAST_ADDRESS
+      - CASSANDRA_CLUSTER_NAME=petanque
+      - CASSANDRA_ENDPOINT_SNITCH=GossipingPropertyFileSnitch
+      - CASSANDRA_DC=datacenter1
+      - CASSANDRA_SEEDS=cass1
+    depends_on:
+      cass2:
+        condition: service_healthy
+    volumes:
+      - cassandra-node-3:/var/lib/cassandra:rw
+    restart:
+      on-failure
+    healthcheck:
+      test: ["CMD-SHELL", "nodetool status"]
+      interval: 2m
+      timeout: 10s
+      retries: 3
+
+  mongo:
+    image: mongo:4.4
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=mongoadmin_user
+      - MONGO_INITDB_ROOT_PASSWORD=mongoadmin_password
+    ports:
+      - '27017:27017'
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - mongo-net
+    healthcheck:
+      test: ["CMD", "mongo", "--eval", "db.adminCommand('ping')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: always
+    logging:
+      driver: json-file
+      options:
+        max-size: "200k"
+        max-file: "10"
+
+#  petanque-party:
+#    build:
+#      context: .
+#      dockerfile: Dockerfile
+#    ports:
+#      - '8080:8080'
+#    depends_on:
+#      - cassandra
+#      - mongo
+#    networks:
+#      - backend
+#    restart: always
+#    logging:
+#      driver: json-file
+#      options:
+#        max-size: "200k"
+#        max-file: "10"
+volumes:
+  cassandra-node-1:
+  cassandra-node-2:
+  cassandra-node-3:
+  mongo_data:
+
+networks:
+  cassandra-net:
+    driver: bridge
+  mongo-net:
+    driver: bridge
